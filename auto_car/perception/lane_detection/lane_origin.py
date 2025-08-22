@@ -605,19 +605,64 @@ class Lane:
             return None, None
         
 
-        left_fit = np.polyfit(lefty, leftx, 2)
-        right_fit = np.polyfit(righty, rightx, 2)
+        # left_fit = np.polyfit(lefty, leftx, 2)
+        # right_fit = np.polyfit(righty, rightx, 2)
 
         # Add the latest polynomial coefficients
-        prev_left_fit.append(left_fit)
-        prev_right_fit.append(right_fit)
+        # prev_left_fit.append(left_fit)
+        # prev_right_fit.append(right_fit)
 
         # Calculate the moving average
-        if len(prev_left_fit) > 10:
-            prev_left_fit.pop(0)
-            prev_right_fit.pop(0)
-            left_fit = sum(prev_left_fit) / len(prev_left_fit)
-            right_fit = sum(prev_right_fit) / len(prev_right_fit)
+        # if len(prev_left_fit) > 10:
+        #     prev_left_fit.pop(0)
+        #     prev_right_fit.pop(0)
+        #     left_fit = sum(prev_left_fit) / len(prev_left_fit)
+        #     right_fit = sum(prev_right_fit) / len(prev_right_fit)
+
+        # 判斷點數門檻（可依資料量調整）
+        min_pts_quadratic = 12   # 二次擬合建議下限
+        min_pts_linear    = 6    # 一次擬合建議下限
+
+        def fit_quadratic_or_linear(y, x):
+            n = len(x)
+            if n >= min_pts_quadratic:
+                coef = np.polyfit(y, x, 2)  # [a2, a1, a0]
+                return coef, 2
+            elif n >= min_pts_linear:
+                a1, a0 = np.polyfit(y, x, 1)  # x = a1*y + a0
+                return np.array([0.0, a1, a0], dtype=np.float64), 1  # 填成二次形
+            else:
+                return None, 0
+
+        left_result = fit_quadratic_or_linear(lefty, leftx)
+        right_result = fit_quadratic_or_linear(righty, rightx)
+
+        left_fit, left_deg   = left_result
+        right_fit, right_deg = right_result
+
+        # 若點數仍不足，直接使用上一幀的係數，不更新歷史，避免污染
+        if left_fit is None:
+            left_fit = getattr(self, "left_fit", None)
+        if right_fit is None:
+            right_fit = getattr(self, "right_fit", None)
+        if left_fit is None or right_fit is None:
+            return None, None
+
+        # 指數移動平均（EMA）比簡單平均更抗突變且延遲更小
+        alpha = getattr(self, "ema_alpha", 0.2)  # 可在 __init__ 設 self.ema_alpha
+
+        if not hasattr(self, "left_fit_ema") or self.left_fit_ema is None:
+            self.left_fit_ema = left_fit.astype(np.float64)
+        else:
+            self.left_fit_ema = alpha * left_fit + (1.0 - alpha) * self.left_fit_ema
+
+        if not hasattr(self, "right_fit_ema") or self.right_fit_ema is None:
+            self.right_fit_ema = right_fit.astype(np.float64)
+        else:
+            self.right_fit_ema = alpha * right_fit + (1.0 - alpha) * self.right_fit_ema
+
+        left_fit = self.left_fit_ema
+        right_fit = self.right_fit_ema
 
         self.left_fit = left_fit
         self.right_fit = right_fit
