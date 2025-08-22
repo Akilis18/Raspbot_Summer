@@ -347,34 +347,38 @@ class Lane:
         left_lane_inds = (
             nonzerox
             > (
-                left_fit[0] * (nonzeroy**2)
-                + left_fit[1] * nonzeroy
-                + left_fit[2]
+                # left_fit[0] * (nonzeroy**2)
+                # + left_fit[1] * nonzeroy
+                # + left_fit[2]
+                np.polyval(left_fit, nonzeroy)
                 - margin
             )
         ) & (
             nonzerox
             < (
-                left_fit[0] * (nonzeroy**2)
-                + left_fit[1] * nonzeroy
-                + left_fit[2]
+                # left_fit[0] * (nonzeroy**2)
+                # + left_fit[1] * nonzeroy
+                # + left_fit[2]
+                np.polyval(left_fit, nonzeroy)
                 + margin
             )
         )
         right_lane_inds = (
             nonzerox
             > (
-                right_fit[0] * (nonzeroy**2)
-                + right_fit[1] * nonzeroy
-                + right_fit[2]
+                # right_fit[0] * (nonzeroy**2)
+                # + right_fit[1] * nonzeroy
+                # + right_fit[2]
+                np.polyval(right_fit, nonzeroy)
                 - margin
             )
         ) & (
             nonzerox
             < (
-                right_fit[0] * (nonzeroy**2)
-                + right_fit[1] * nonzeroy
-                + right_fit[2]
+                # right_fit[0] * (nonzeroy**2)
+                # + right_fit[1] * nonzeroy
+                # + right_fit[2]
+                np.polyval(right_fit, nonzeroy)
                 + margin
             )
         )
@@ -432,8 +436,10 @@ class Lane:
         ploty = np.linspace(
             0, self.warped_frame.shape[0] - 1, self.warped_frame.shape[0]
         )
-        left_fitx = left_fit[0] * ploty**2 + left_fit[1] * ploty + left_fit[2]
-        right_fitx = right_fit[0] * ploty**2 + right_fit[1] * ploty + right_fit[2]
+        # left_fitx = left_fit[0] * ploty**2 + left_fit[1] * ploty + left_fit[2]
+        left_fitx = np.polyval(left_fit, ploty)
+        # right_fitx = right_fit[0] * ploty**2 + right_fit[1] * ploty + right_fit[2]
+        right_fitx = np.polyval(right_fit, ploty)
         self.ploty = ploty
         self.left_fitx = left_fitx
         self.right_fitx = right_fitx
@@ -678,8 +684,10 @@ class Lane:
             ploty = np.linspace(
                 0, frame_sliding_window.shape[0] - 1, frame_sliding_window.shape[0]
             )
-            left_fitx = left_fit[0] * ploty**2 + left_fit[1] * ploty + left_fit[2]
-            right_fitx = right_fit[0] * ploty**2 + right_fit[1] * ploty + right_fit[2]
+            # left_fitx = left_fit[0] * ploty**2 + left_fit[1] * ploty + left_fit[2]
+            left_fitx = np.polyval(left_fit, ploty)
+            # right_fitx = right_fit[0] * ploty**2 + right_fit[1] * ploty + right_fit[2]
+            right_fitx = np.polyval(right_fit, ploty)
 
             # Generate an image to visualize the result
             out_img = (
