@@ -13,6 +13,7 @@ import pathlib
 
 import control.manual_control as manual_control
 from perception.sensors.camera_node import CameraNode
+from perception.lane_detection import lane_origin
 
 
 class CarApp:
@@ -29,9 +30,9 @@ class CarApp:
         remote = manual_control.RemoteControl()
 
         def run_remote(stdscr):
-            remote.car.Car_Stop()
-            remote.car.Ctrl_Servo(1, 85)
-            remote.car.Ctrl_Servo(2, 110)
+            # remote.car.Car_Stop()
+            # remote.car.Ctrl_Servo(1, 85)
+            # remote.car.Ctrl_Servo(2, 110)
             
             stdscr.nodelay(True)
             stdscr.clear()
@@ -86,9 +87,63 @@ class CarApp:
 
     def auto_mode(self):
         print("Auto mode starting...")
-        # Placeholder for autonomous driving logic (lane detection, object detection, etc.)
-        self.run_cameras()
-        print("Auto mode finished.")
+
+        remote = manual_control.RemoteControl()
+        remote.car.Car_Stop()
+        remote.car.Ctrl_Servo(1, 85)
+        remote.car.Ctrl_Servo(2, 110)
+
+        cam = CameraNode(camera_index=0, resolution=(640, 480), flip_front=True)
+        cam.start()
+
+        try:
+            while not self.stop_event.is_set():
+                frame = cam.get_frame()
+                if frame is None:
+                    continue
+
+                # Process the frame for lane detection
+                result_frame, success, lane_info = lane_origin.process_one_frame(frame, plot=False, show_real_time=True)
+
+                if success and lane_info:
+                    steer_deg = lane_info.get('steer_deg', 0.0)
+                    
+                    # P-controller for steering
+                    base_speed = 80  # Base speed for the car
+                    steering_gain = 1.5  # Proportional gain for steering
+                    
+                    # Calculate speed difference based on steering angle
+                    speed_diff = steering_gain * steer_deg
+                    
+                    # Adjust wheel speeds
+                    left_speed = base_speed - speed_diff
+                    right_speed = base_speed + speed_diff
+                    
+                    # Clamp speeds to a valid range (e.g., 0-255)
+                    left_speed = max(0, min(255, left_speed))
+                    right_speed = max(0, min(255, right_speed))
+                    
+                    remote.car.Car_Run(int(left_speed), int(right_speed))
+                else:
+                    # If lane detection fails, stop the car
+                    remote.car.Car_Stop()
+
+                # Show results (optional: display processed or original frame)
+                cv2.imshow("Auto Mode - Lane Detection", result_frame if result_frame is not None else frame)
+
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    self.stop_event.set()
+                    break
+
+        except Exception as e:
+            print(f"Error occurred: {e}")
+
+        finally:
+            remote.car.Car_Stop()
+            cam.stop()
+            cv2.destroyAllWindows()
+            print("Auto mode finished.")
 
     def manual_mode(self):
         print("Manual mode starting...")

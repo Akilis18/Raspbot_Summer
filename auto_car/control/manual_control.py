@@ -14,6 +14,9 @@ from YB_car import YB_Pcb_Car
 class RemoteControl:
     def __init__(self):
         self.car = YB_Pcb_Car()  # Instantiate the car object
+        self.car.Car_Stop()
+        self.car.Ctrl_Servo(1, 85)  # Set initial servo positions
+        self.car.Ctrl_Servo(2, 110)
 
     def start(self):
         curses.wrapper(self.run)
