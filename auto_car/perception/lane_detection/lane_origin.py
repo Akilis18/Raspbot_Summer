@@ -66,12 +66,20 @@ class Lane:
 
         # Four corners of the trapezoid-shaped region of interest
         # You need to find these corners manually.
+        # self.roi_points = np.float32(
+        #     [
+        #         (int(0.294375 * width), int(0.108333 * height)),  # Top-left corner
+        #         (int(0.025313 * width), int(0.508333 * height)),  # Bottom-left corner
+        #         (int(0.950938 * width), int(0.469417 * height)),  # Bottom-right corner
+        #         (int(0.682187 * width), int(0.077083 * height)),  # Top-right corner
+        #     ]
+        # )
         self.roi_points = np.float32(
             [
-                (int(0.294375 * width), int(0.108333 * height)),  # Top-left corner
-                (int(0.025313 * width), int(0.508333 * height)),  # Bottom-left corner
-                (int(0.950938 * width), int(0.469417 * height)),  # Bottom-right corner
-                (int(0.682187 * width), int(0.077083 * height)),  # Top-right corner
+                (int(0.209375 * width), int(0.183333 * height)),  # Top-left corner
+                (int(0.006250 * width), int(0.985417 * height)),  # Bottom-left corner
+                (int(0.990625 * width), int(0.993750 * height)),  # Bottom-right corner
+                (int(0.803125 * width), int(0.212500 * height)),  # Top-right corner
             ]
         )
 
@@ -93,10 +101,10 @@ class Lane:
 
         self.sign_block_points = np.float32(
             [
-                (int(0.348438 * width), int(0.175833 * height)),  # Top-left corner
-                (int(0.325000 * width), int(0.330833 * height)),  # Bottom-left corner
-                (int(0.646875 * width), int(0.320417 * height)),  # Bottom-right corner
-                (int(0.631250 * width), int(0.177917 * height)),  # Top-right corner
+                (int(0.203125 * width), int(0.500000 * height)),  # Top-left corner
+                (int(0.076563 * width), int(0.925000 * height)),  # Bottom-left corner
+                (int(0.853125 * width), int(0.920833 * height)),  # Bottom-right corner
+                (int(0.723437 * width), int(0.475000 * height)),  # Top-right corner
             ]
         )
 
