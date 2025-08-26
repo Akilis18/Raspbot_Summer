@@ -1,6 +1,7 @@
 import cv2  # Import the OpenCV library to enable computer vision
 import numpy as np  # Import the NumPy scientific computing library
 from perception.lane_detection import edge_detection as edge  # Handles the detection of lane lines
+# import edge_detection as edge  # Handles the detection of lane lines
 import matplotlib.pyplot as plt  # Used for plotting and error checking
 
 import os  # Import the os library to handle file paths
@@ -67,10 +68,10 @@ class Lane:
         # You need to find these corners manually.
         self.roi_points = np.float32(
             [
-                (int(0.284375 * width), int(0.108333 * height)),  # Top-left corner
-                (int(0.020313 * width), int(0.508333 * height)),  # Bottom-left corner
-                (int(0.960938 * width), int(0.469417 * height)),  # Bottom-right corner
-                (int(0.692187 * width), int(0.077083 * height)),  # Top-right corner
+                (int(0.294375 * width), int(0.108333 * height)),  # Top-left corner
+                (int(0.025313 * width), int(0.508333 * height)),  # Bottom-left corner
+                (int(0.950938 * width), int(0.469417 * height)),  # Bottom-right corner
+                (int(0.682187 * width), int(0.077083 * height)),  # Top-right corner
             ]
         )
 
@@ -87,6 +88,15 @@ class Lane:
                     self.orig_image_size[1],
                 ],  # Bottom-right corner
                 [self.orig_image_size[0] - self.padding, 0],  # Top-right corner
+            ]
+        )
+
+        self.sign_block_points = np.float32(
+            [
+                (int(0.348438 * width), int(0.175833 * height)),  # Top-left corner
+                (int(0.325000 * width), int(0.330833 * height)),  # Bottom-left corner
+                (int(0.646875 * width), int(0.320417 * height)),  # Bottom-right corner
+                (int(0.631250 * width), int(0.177917 * height)),  # Top-right corner
             ]
         )
 
@@ -868,6 +878,27 @@ class Lane:
         if frame is None:
             frame = self.lane_line_markings
 
+        # 使用 sign_block_points 在原圖座標系先行遮蔽道路中線（避免被當作車道線）
+        try:
+            if hasattr(self, "sign_block_points") and self.sign_block_points is not None:
+                mask = np.zeros(self.orig_frame.shape[:2], dtype=np.uint8)
+                cv2.fillPoly(mask, [self.sign_block_points.astype(np.int32)], 255)
+                inv_mask = cv2.bitwise_not(mask)
+                if len(frame.shape) == 3 and frame.shape[2] == 3:
+                    inv_mask_3 = cv2.merge([inv_mask, inv_mask, inv_mask])
+                    frame = cv2.bitwise_and(frame, inv_mask_3)
+                else:
+                    # 單通道（binary/grayscale）
+                    # 若 frame 尺寸與 orig_frame 不同，resize 遮罩以匹配
+                    if frame.shape[:2] != mask.shape[:2]:
+                        inv_mask_resized = cv2.resize(inv_mask, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
+                        frame = cv2.bitwise_and(frame, inv_mask_resized)
+                    else:
+                        frame = cv2.bitwise_and(frame, inv_mask)
+        except Exception:
+            # 遮罩非關鍵步驟，若失敗不影響主流程
+            pass
+
         # Calculate the transformation matrix
         self.transformation_matrix = cv2.getPerspectiveTransform(
             self.roi_points, self.desired_roi_points
@@ -1052,7 +1083,7 @@ class LaneDetector:
         try:
             # 取得車道線標記
             lane_line_markings = self.lane_obj.get_line_markings()
-            warped_frame = self.lane_obj.perspective_transform()
+            warped_frame = self.lane_obj.perspective_transform(plot=self.plot_enabled)
             
             # 決定使用哪種檢測方法
             use_sliding_window = (
@@ -1200,7 +1231,8 @@ def ensure_images_dir():
 
 if __name__ == "__main__":
     # main()
-    frame = cv2.imread("british airways landing-short-00.00.05.773.jpeg")
+    # frame = cv2.imread("british airways landing-short-00.00.05.773.jpeg")
+    frame = cv2.imread("front_20250815_145515_567427.jpg")
     result_frame, success, lane_info = process_one_frame(frame, plot=False, show_real_time=True)
     print(lane_info)
     cv2.waitKey(0)
