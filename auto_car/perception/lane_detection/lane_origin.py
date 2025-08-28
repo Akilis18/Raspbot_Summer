@@ -1,23 +1,18 @@
 import cv2  # Import the OpenCV library to enable computer vision
 import numpy as np  # Import the NumPy scientific computing library
-from perception.lane_detection import edge_detection as edge  # Handles the detection of lane lines
+# from perception.lane_detection import edge_detection as edge  # Handles the detection of lane lines
 # import edge_detection as edge  # Handles the detection of lane lines
 import matplotlib.pyplot as plt  # Used for plotting and error checking
 
+import sys
 import os  # Import the os library to handle file paths
 
-# Author: Addison Sears-Collins
-# https://automaticaddison.com
-# Description: Implementation of the Lane class
+# Dynamically add the directory containing edge_detection.py to sys.path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
 
-# Make sure the video file is in the same directory as your code
-filename = "orig_lane_detection_1.mp4"
-file_size = (1920, 1080)  # Assumes 1920x1080 mp4
-scale_ratio = 1  # Option to scale to fraction of original size.
-
-# We want to save the output to a video file
-output_filename = "orig_lane_detection_1_lanes.mp4"
-output_frames_per_second = 20.0
+import edge_detection as edge  # Handles the detection of lane lines
 
 # Global variables
 prev_leftx = None
@@ -66,22 +61,22 @@ class Lane:
 
         # Four corners of the trapezoid-shaped region of interest
         # You need to find these corners manually.
-        # self.roi_points = np.float32(
-        #     [
-        #         (int(0.294375 * width), int(0.108333 * height)),  # Top-left corner
-        #         (int(0.025313 * width), int(0.508333 * height)),  # Bottom-left corner
-        #         (int(0.950938 * width), int(0.469417 * height)),  # Bottom-right corner
-        #         (int(0.682187 * width), int(0.077083 * height)),  # Top-right corner
-        #     ]
-        # )
         self.roi_points = np.float32(
             [
-                (int(0.209375 * width), int(0.183333 * height)),  # Top-left corner
-                (int(0.006250 * width), int(0.985417 * height)),  # Bottom-left corner
-                (int(0.990625 * width), int(0.993750 * height)),  # Bottom-right corner
-                (int(0.803125 * width), int(0.212500 * height)),  # Top-right corner
+                (int(0.282813 * width), int(0.262500 * height)),  # Top-left corner
+                (int(0.042188 * width), int(0.731250 * height)),  # Bottom-left corner
+                (int(0.992188 * width), int(0.695833 * height)),  # Bottom-right corner
+                (int(0.831250 * width), int(0.218750 * height)),  # Top-right corner
             ]
         )
+        # self.roi_points = np.float32(
+        #     [
+        #         (int(0.209375 * width), int(0.183333 * height)),  # Top-left corner
+        #         (int(0.006250 * width), int(0.985417 * height)),  # Bottom-left corner
+        #         (int(0.990625 * width), int(0.993750 * height)),  # Bottom-right corner
+        #         (int(0.803125 * width), int(0.212500 * height)),  # Top-right corner
+        #     ]
+        # )
 
         # The desired corner locations  of the region of interest
         # after we perform perspective transformation.
@@ -805,12 +800,12 @@ class Lane:
         # along the x and y axis of the video frame.
         # sxbinary is a matrix full of 0s (black) and 255 (white) intensity values
         # Relatively light pixels get made white. Dark pixels get made black.
-        _, sxbinary = edge.threshold(hls[:, :, 1], thresh=(120, 255))
+        _, sxbinary = edge.threshold(hls[:, :, 1], thresh=(80, 255))
         sxbinary = edge.blur_gaussian(sxbinary, ksize=3)  # Reduce noise
 
         # 1s will be in the cells with the highest Sobel derivative values
         # (i.e. strongest lane line edges)
-        sxbinary = edge.mag_thresh(sxbinary, sobel_kernel=3, thresh=(110, 255))
+        sxbinary = edge.mag_thresh(sxbinary, sobel_kernel=3, thresh=(80, 255))
 
         ######################## Isolate possible lane lines ######################
 
@@ -822,7 +817,7 @@ class Lane:
         # White in the regions with the purest hue colors (e.g. >130...play with
         # this value for best results).
         s_channel = hls[:, :, 2]  # use only the saturation channel data
-        _, s_binary = edge.threshold(s_channel, (130, 255))
+        _, s_binary = edge.threshold(s_channel, (80, 255))
 
         # Perform binary thresholding on the R (red) channel of the
         # original BGR video frame.
@@ -830,7 +825,7 @@ class Lane:
         # White in the regions with the richest red channel values (e.g. >120).
         # Remember, pure white is bgr(255, 255, 255).
         # Pure yellow is bgr(0, 255, 255). Both have high red channel values.
-        _, r_thresh = edge.threshold(frame[:, :, 2], thresh=(120, 255))
+        _, r_thresh = edge.threshold(frame[:, :, 2], thresh=(80, 255))
 
         # Lane lines should be pure in color and have high red channel values
         # Bitwise AND operation to reduce noise and black-out any pixels that
@@ -1353,12 +1348,10 @@ def ensure_images_dir():
 
 
 if __name__ == "__main__":
-    # main()
-    # frame = cv2.imread("british airways landing-short-00.00.05.773.jpeg")
-    frame = cv2.imread("forward_1.jpg")
-    result_frame, success, lane_info = process_one_frame(
-        frame, plot=False, show_real_time=True
-    )
+    # frame = cv2.imread("./images/front/front_20250827_151203_320567.jpg")
+    frame = cv2.imread("./images/front/front_20250827_215103_472195.jpg")
+    # frame = cv2.imread("./images/front/front_20250827_151241_056756.jpg")
+    result_frame, success, lane_info = process_one_frame(frame, plot=True, show_real_time=True)
     print(lane_info)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
