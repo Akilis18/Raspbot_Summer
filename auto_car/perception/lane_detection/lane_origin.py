@@ -1,6 +1,7 @@
 import cv2  # Import the OpenCV library to enable computer vision
 import numpy as np  # Import the NumPy scientific computing library
 from perception.lane_detection import edge_detection as edge  # Handles the detection of lane lines
+# import edge_detection as edge  # Handles the detection of lane lines
 import matplotlib.pyplot as plt  # Used for plotting and error checking
 
 import os  # Import the os library to handle file paths
@@ -65,12 +66,20 @@ class Lane:
 
         # Four corners of the trapezoid-shaped region of interest
         # You need to find these corners manually.
+        # self.roi_points = np.float32(
+        #     [
+        #         (int(0.294375 * width), int(0.108333 * height)),  # Top-left corner
+        #         (int(0.025313 * width), int(0.508333 * height)),  # Bottom-left corner
+        #         (int(0.950938 * width), int(0.469417 * height)),  # Bottom-right corner
+        #         (int(0.682187 * width), int(0.077083 * height)),  # Top-right corner
+        #     ]
+        # )
         self.roi_points = np.float32(
             [
-                (int(0.284375 * width), int(0.108333 * height)),  # Top-left corner
-                (int(0.020313 * width), int(0.508333 * height)),  # Bottom-left corner
-                (int(0.960938 * width), int(0.469417 * height)),  # Bottom-right corner
-                (int(0.692187 * width), int(0.077083 * height)),  # Top-right corner
+                (int(0.209375 * width), int(0.183333 * height)),  # Top-left corner
+                (int(0.006250 * width), int(0.985417 * height)),  # Bottom-left corner
+                (int(0.990625 * width), int(0.993750 * height)),  # Bottom-right corner
+                (int(0.803125 * width), int(0.212500 * height)),  # Top-right corner
             ]
         )
 
@@ -87,6 +96,15 @@ class Lane:
                     self.orig_image_size[1],
                 ],  # Bottom-right corner
                 [self.orig_image_size[0] - self.padding, 0],  # Top-right corner
+            ]
+        )
+
+        self.sign_block_points = np.float32(
+            [
+                (int(0.203125 * width), int(0.500000 * height)),  # Top-left corner
+                (int(0.076563 * width), int(0.925000 * height)),  # Bottom-left corner
+                (int(0.853125 * width), int(0.920833 * height)),  # Bottom-right corner
+                (int(0.723437 * width), int(0.475000 * height)),  # Top-right corner
             ]
         )
 
@@ -347,34 +365,38 @@ class Lane:
         left_lane_inds = (
             nonzerox
             > (
-                left_fit[0] * (nonzeroy**2)
-                + left_fit[1] * nonzeroy
-                + left_fit[2]
+                # left_fit[0] * (nonzeroy**2)
+                # + left_fit[1] * nonzeroy
+                # + left_fit[2]
+                np.polyval(left_fit, nonzeroy)
                 - margin
             )
         ) & (
             nonzerox
             < (
-                left_fit[0] * (nonzeroy**2)
-                + left_fit[1] * nonzeroy
-                + left_fit[2]
+                # left_fit[0] * (nonzeroy**2)
+                # + left_fit[1] * nonzeroy
+                # + left_fit[2]
+                np.polyval(left_fit, nonzeroy)
                 + margin
             )
         )
         right_lane_inds = (
             nonzerox
             > (
-                right_fit[0] * (nonzeroy**2)
-                + right_fit[1] * nonzeroy
-                + right_fit[2]
+                # right_fit[0] * (nonzeroy**2)
+                # + right_fit[1] * nonzeroy
+                # + right_fit[2]
+                np.polyval(right_fit, nonzeroy)
                 - margin
             )
         ) & (
             nonzerox
             < (
-                right_fit[0] * (nonzeroy**2)
-                + right_fit[1] * nonzeroy
-                + right_fit[2]
+                # right_fit[0] * (nonzeroy**2)
+                # + right_fit[1] * nonzeroy
+                # + right_fit[2]
+                np.polyval(right_fit, nonzeroy)
                 + margin
             )
         )
@@ -432,8 +454,10 @@ class Lane:
         ploty = np.linspace(
             0, self.warped_frame.shape[0] - 1, self.warped_frame.shape[0]
         )
-        left_fitx = left_fit[0] * ploty**2 + left_fit[1] * ploty + left_fit[2]
-        right_fitx = right_fit[0] * ploty**2 + right_fit[1] * ploty + right_fit[2]
+        # left_fitx = left_fit[0] * ploty**2 + left_fit[1] * ploty + left_fit[2]
+        left_fitx = np.polyval(left_fit, ploty)
+        # right_fitx = right_fit[0] * ploty**2 + right_fit[1] * ploty + right_fit[2]
+        right_fitx = np.polyval(right_fit, ploty)
         self.ploty = ploty
         self.left_fitx = left_fitx
         self.right_fitx = right_fitx
@@ -605,19 +629,64 @@ class Lane:
             return None, None
         
 
-        left_fit = np.polyfit(lefty, leftx, 2)
-        right_fit = np.polyfit(righty, rightx, 2)
+        # left_fit = np.polyfit(lefty, leftx, 2)
+        # right_fit = np.polyfit(righty, rightx, 2)
 
         # Add the latest polynomial coefficients
-        prev_left_fit.append(left_fit)
-        prev_right_fit.append(right_fit)
+        # prev_left_fit.append(left_fit)
+        # prev_right_fit.append(right_fit)
 
         # Calculate the moving average
-        if len(prev_left_fit) > 10:
-            prev_left_fit.pop(0)
-            prev_right_fit.pop(0)
-            left_fit = sum(prev_left_fit) / len(prev_left_fit)
-            right_fit = sum(prev_right_fit) / len(prev_right_fit)
+        # if len(prev_left_fit) > 10:
+        #     prev_left_fit.pop(0)
+        #     prev_right_fit.pop(0)
+        #     left_fit = sum(prev_left_fit) / len(prev_left_fit)
+        #     right_fit = sum(prev_right_fit) / len(prev_right_fit)
+
+        # 判斷點數門檻（可依資料量調整）
+        min_pts_quadratic = 12   # 二次擬合建議下限
+        min_pts_linear    = 6    # 一次擬合建議下限
+
+        def fit_quadratic_or_linear(y, x):
+            n = len(x)
+            if n >= min_pts_quadratic:
+                coef = np.polyfit(y, x, 2)  # [a2, a1, a0]
+                return coef, 2
+            elif n >= min_pts_linear:
+                a1, a0 = np.polyfit(y, x, 1)  # x = a1*y + a0
+                return np.array([0.0, a1, a0], dtype=np.float64), 1  # 填成二次形
+            else:
+                return None, 0
+
+        left_result = fit_quadratic_or_linear(lefty, leftx)
+        right_result = fit_quadratic_or_linear(righty, rightx)
+
+        left_fit, left_deg   = left_result
+        right_fit, right_deg = right_result
+
+        # 若點數仍不足，直接使用上一幀的係數，不更新歷史，避免污染
+        if left_fit is None:
+            left_fit = getattr(self, "left_fit", None)
+        if right_fit is None:
+            right_fit = getattr(self, "right_fit", None)
+        if left_fit is None or right_fit is None:
+            return None, None
+
+        # 指數移動平均（EMA）比簡單平均更抗突變且延遲更小
+        alpha = getattr(self, "ema_alpha", 0.2)  # 可在 __init__ 設 self.ema_alpha
+
+        if not hasattr(self, "left_fit_ema") or self.left_fit_ema is None:
+            self.left_fit_ema = left_fit.astype(np.float64)
+        else:
+            self.left_fit_ema = alpha * left_fit + (1.0 - alpha) * self.left_fit_ema
+
+        if not hasattr(self, "right_fit_ema") or self.right_fit_ema is None:
+            self.right_fit_ema = right_fit.astype(np.float64)
+        else:
+            self.right_fit_ema = alpha * right_fit + (1.0 - alpha) * self.right_fit_ema
+
+        left_fit = self.left_fit_ema
+        right_fit = self.right_fit_ema
 
         self.left_fit = left_fit
         self.right_fit = right_fit
@@ -633,8 +702,10 @@ class Lane:
             ploty = np.linspace(
                 0, frame_sliding_window.shape[0] - 1, frame_sliding_window.shape[0]
             )
-            left_fitx = left_fit[0] * ploty**2 + left_fit[1] * ploty + left_fit[2]
-            right_fitx = right_fit[0] * ploty**2 + right_fit[1] * ploty + right_fit[2]
+            # left_fitx = left_fit[0] * ploty**2 + left_fit[1] * ploty + left_fit[2]
+            left_fitx = np.polyval(left_fit, ploty)
+            # right_fitx = right_fit[0] * ploty**2 + right_fit[1] * ploty + right_fit[2]
+            right_fitx = np.polyval(right_fit, ploty)
 
             # Generate an image to visualize the result
             out_img = (
@@ -814,6 +885,27 @@ class Lane:
         """
         if frame is None:
             frame = self.lane_line_markings
+
+        # 使用 sign_block_points 在原圖座標系先行遮蔽道路中線（避免被當作車道線）
+        try:
+            if hasattr(self, "sign_block_points") and self.sign_block_points is not None:
+                mask = np.zeros(self.orig_frame.shape[:2], dtype=np.uint8)
+                cv2.fillPoly(mask, [self.sign_block_points.astype(np.int32)], 255)
+                inv_mask = cv2.bitwise_not(mask)
+                if len(frame.shape) == 3 and frame.shape[2] == 3:
+                    inv_mask_3 = cv2.merge([inv_mask, inv_mask, inv_mask])
+                    frame = cv2.bitwise_and(frame, inv_mask_3)
+                else:
+                    # 單通道（binary/grayscale）
+                    # 若 frame 尺寸與 orig_frame 不同，resize 遮罩以匹配
+                    if frame.shape[:2] != mask.shape[:2]:
+                        inv_mask_resized = cv2.resize(inv_mask, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
+                        frame = cv2.bitwise_and(frame, inv_mask_resized)
+                    else:
+                        frame = cv2.bitwise_and(frame, inv_mask)
+        except Exception:
+            # 遮罩非關鍵步驟，若失敗不影響主流程
+            pass
 
         # Calculate the transformation matrix
         self.transformation_matrix = cv2.getPerspectiveTransform(
@@ -999,7 +1091,7 @@ class LaneDetector:
         try:
             # 取得車道線標記
             lane_line_markings = self.lane_obj.get_line_markings()
-            warped_frame = self.lane_obj.perspective_transform()
+            warped_frame = self.lane_obj.perspective_transform(plot=self.plot_enabled)
             
             # 決定使用哪種檢測方法
             use_sliding_window = (
@@ -1147,7 +1239,8 @@ def ensure_images_dir():
 
 if __name__ == "__main__":
     # main()
-    frame = cv2.imread("british airways landing-short-00.00.05.773.jpeg")
+    # frame = cv2.imread("british airways landing-short-00.00.05.773.jpeg")
+    frame = cv2.imread("front_20250815_145515_567427.jpg")
     result_frame, success, lane_info = process_one_frame(frame, plot=False, show_real_time=True)
     print(lane_info)
     cv2.waitKey(0)
