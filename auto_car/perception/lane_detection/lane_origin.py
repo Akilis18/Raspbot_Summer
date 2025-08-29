@@ -101,10 +101,10 @@ class Lane:
 
         self.sign_block_points = np.float32(
             [
-                (int(0.203125 * width), int(0.500000 * height)),  # Top-left corner
-                (int(0.076563 * width), int(0.925000 * height)),  # Bottom-left corner
-                (int(0.853125 * width), int(0.920833 * height)),  # Bottom-right corner
-                (int(0.723437 * width), int(0.475000 * height)),  # Top-right corner
+                (int(0.223438 * width), int(0.425000 * height)),  # Top-left corner      
+                (int(0.126562 * width), int(0.970833 * height)),  # Bottom-left corner   
+                (int(0.854688 * width), int(0.979167 * height)),  # Bottom-right corner  
+                (int(0.709375 * width), int(0.395833 * height)),  # Top-right corner     
             ]
         )
 
@@ -112,7 +112,7 @@ class Lane:
         self.histogram = None
 
         # Sliding window parameters
-        self.no_of_windows = 10
+        self.no_of_windows = 15
         self.margin = int((1 / 12) * width)  # Window width is +/- margin
         self.minpix = int((1 / 24) * width)  # Min no. of pixels to recenter window
 
