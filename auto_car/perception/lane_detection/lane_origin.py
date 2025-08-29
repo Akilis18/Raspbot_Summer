@@ -1,18 +1,23 @@
 import cv2  # Import the OpenCV library to enable computer vision
 import numpy as np  # Import the NumPy scientific computing library
-# from perception.lane_detection import edge_detection as edge  # Handles the detection of lane lines
+from perception.lane_detection import edge_detection as edge  # Handles the detection of lane lines
 # import edge_detection as edge  # Handles the detection of lane lines
 import matplotlib.pyplot as plt  # Used for plotting and error checking
 
-import sys
 import os  # Import the os library to handle file paths
 
-# Dynamically add the directory containing edge_detection.py to sys.path
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-if CURRENT_DIR not in sys.path:
-    sys.path.insert(0, CURRENT_DIR)
+# Author: Addison Sears-Collins
+# https://automaticaddison.com
+# Description: Implementation of the Lane class
 
-import edge_detection as edge  # Handles the detection of lane lines
+# Make sure the video file is in the same directory as your code
+filename = "orig_lane_detection_1.mp4"
+file_size = (1920, 1080)  # Assumes 1920x1080 mp4
+scale_ratio = 1  # Option to scale to fraction of original size.
+
+# We want to save the output to a video file
+output_filename = "orig_lane_detection_1_lanes.mp4"
+output_frames_per_second = 20.0
 
 # Global variables
 prev_leftx = None
@@ -107,7 +112,7 @@ class Lane:
         self.histogram = None
 
         # Sliding window parameters
-        self.no_of_windows = 20
+        self.no_of_windows = 10
         self.margin = int((1 / 12) * width)  # Window width is +/- margin
         self.minpix = int((1 / 24) * width)  # Min no. of pixels to recenter window
 
@@ -333,9 +338,7 @@ class Lane:
 
         # 方向與有號半徑
         direction = (
-            "left"
-            if steer_deg > deg_deadband
-            else "right" if steer_deg < -deg_deadband else "straight"
+            "left" if steer_deg > deg_deadband else "right" if steer_deg < -deg_deadband else "straight"
         )
         signed_radius_m = float("inf") if abs(kappa) < 1e-6 else 1.0 / kappa
 
@@ -490,12 +493,8 @@ class Lane:
             right_line_pts = np.hstack((right_line_window1, right_line_window2))
 
             # Draw the lane onto the warped blank image
-            cv2.fillPoly(
-                window_img, np.array([left_line_pts], dtype=np.int32), (0, 255, 0)
-            )
-            cv2.fillPoly(
-                window_img, np.array([right_line_pts], dtype=np.int32), (0, 255, 0)
-            )
+            cv2.fillPoly(window_img, np.array([left_line_pts], dtype=np.int32), (0, 255, 0))
+            cv2.fillPoly(window_img, np.array([right_line_pts], dtype=np.int32), (0, 255, 0))
             result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
 
             # Plot the figures
@@ -534,12 +533,6 @@ class Lane:
         nonzeroy = np.array(nonzero[0])
         nonzerox = np.array(nonzero[1])
 
-        # 用於存儲最近成功窗口中心的X座標，以應對彎道
-        from collections import deque
-
-        recent_left_x = deque(maxlen=5)
-        recent_right_x = deque(maxlen=5)
-
         # Store the pixel indices for the left and right lane lines
         left_lane_inds = []
         right_lane_inds = []
@@ -550,95 +543,57 @@ class Lane:
         leftx_current = leftx_base
         rightx_current = rightx_base
 
-        # 連續預測失敗計數器
-        left_consecutive_failures = 0
-        right_consecutive_failures = 0
-        MAX_FAILURES = 5  # 允許連續預測的最大次數
-
-        # 新增：車道線是否持續有效的標誌
-        left_lane_active = True
-        right_lane_active = True
-
         # Go through one window at a time
         no_of_windows = self.no_of_windows
 
         for window in range(no_of_windows):
 
-            # Identify window boundaries in y (and right and left)
+            # Identify window boundaries in x and y (and right and left)
             win_y_low = self.warped_frame.shape[0] - (window + 1) * window_height
             win_y_high = self.warped_frame.shape[0] - window * window_height
+            win_xleft_low = leftx_current - margin
+            win_xleft_high = leftx_current + margin
+            win_xright_low = rightx_current - margin
+            win_xright_high = rightx_current + margin
+            cv2.rectangle(
+                frame_sliding_window,
+                (win_xleft_low, win_y_low),
+                (win_xleft_high, win_y_high),
+                (255, 255, 255),
+                2,
+            )
+            cv2.rectangle(
+                frame_sliding_window,
+                (win_xright_low, win_y_low),
+                (win_xright_high, win_y_high),
+                (255, 255, 255),
+                2,
+            )
 
-            # --- 左側車道線處理 ---
-            if left_lane_active:
-                win_xleft_low = leftx_current - margin
-                win_xleft_high = leftx_current + margin
-                cv2.rectangle(
-                    frame_sliding_window,
-                    (win_xleft_low, win_y_low),
-                    (win_xleft_high, win_y_high),
-                    (255, 255, 255),
-                    2,
-                )
+            # Identify the nonzero pixels in x and y within the window
+            good_left_inds = (
+                (nonzeroy >= win_y_low)
+                & (nonzeroy < win_y_high)
+                & (nonzerox >= win_xleft_low)
+                & (nonzerox < win_xleft_high)
+            ).nonzero()[0]
+            good_right_inds = (
+                (nonzeroy >= win_y_low)
+                & (nonzeroy < win_y_high)
+                & (nonzerox >= win_xright_low)
+                & (nonzerox < win_xright_high)
+            ).nonzero()[0]
 
-                good_left_inds = (
-                    (nonzeroy >= win_y_low)
-                    & (nonzeroy < win_y_high)
-                    & (nonzerox >= win_xleft_low)
-                    & (nonzerox < win_xleft_high)
-                ).nonzero()[0]
-                left_lane_inds.append(good_left_inds)
+            # Append these indices to the lists
+            left_lane_inds.append(good_left_inds)
+            right_lane_inds.append(good_right_inds)
 
-                minpix = self.minpix
-                if len(good_left_inds) > minpix:
-                    leftx_current = int(np.mean(nonzerox[good_left_inds]))
-                    recent_left_x.append(leftx_current)
-                    left_consecutive_failures = 0  # 成功找到，計數器歸零
-                else:
-                    left_consecutive_failures += 1
-                    if left_consecutive_failures < MAX_FAILURES:
-                        if len(recent_left_x) > 1:
-                            delta = recent_left_x[-1] - recent_left_x[-2]
-                            leftx_current = recent_left_x[-1] + delta
-                        elif len(recent_left_x) > 0:
-                            leftx_current = recent_left_x[-1]
-                    else:
-                        left_lane_active = False  # 連續失敗，放棄搜索
-
-            # --- 右側車道線處理 ---
-            if right_lane_active:
-                win_xright_low = rightx_current - margin
-                win_xright_high = rightx_current + margin
-                cv2.rectangle(
-                    frame_sliding_window,
-                    (win_xright_low, win_y_low),
-                    (win_xright_high, win_y_high),
-                    (255, 255, 255),
-                    2,
-                )
-
-                good_right_inds = (
-                    (nonzeroy >= win_y_low)
-                    & (nonzeroy < win_y_high)
-                    & (nonzerox >= win_xright_low)
-                    & (nonzerox < win_xright_high)
-                ).nonzero()[0]
-                right_lane_inds.append(good_right_inds)
-
-                minpix = self.minpix
-                if len(good_right_inds) > minpix:
-                    rightx_current = int(np.mean(nonzerox[good_right_inds]))
-                    recent_right_x.append(rightx_current)
-                    right_consecutive_failures = 0  # 成功找到，計數器歸零
-                else:
-                    right_consecutive_failures += 1
-                    if right_consecutive_failures < MAX_FAILURES:
-                        if len(recent_right_x) > 1:
-                            delta = recent_right_x[-1] - recent_right_x[-2]
-                            rightx_current = recent_right_x[-1] + delta
-                        elif len(recent_right_x) > 0:
-                            rightx_current = recent_right_x[-1]
-                    else:
-                        right_lane_active = False  # 連續失敗，放棄搜索
+            # If you found > minpix pixels, recenter next window on mean position
+            minpix = self.minpix
+            if len(good_left_inds) > minpix:
+                leftx_current = int(np.mean(nonzerox[good_left_inds]))
+            if len(good_right_inds) > minpix:
+                rightx_current = int(np.mean(nonzerox[good_right_inds]))
 
         # Concatenate the arrays of indices
         left_lane_inds = np.concatenate(left_lane_inds)
@@ -668,10 +623,11 @@ class Lane:
             lefty = prev_lefty
             rightx = prev_rightx
             righty = prev_righty
-
+            
         # x and y are None, means no lane lines detected
         if leftx is None or lefty is None or rightx is None or righty is None:
             return None, None
+        
 
         # left_fit = np.polyfit(lefty, leftx, 2)
         # right_fit = np.polyfit(righty, rightx, 2)
@@ -688,8 +644,8 @@ class Lane:
         #     right_fit = sum(prev_right_fit) / len(prev_right_fit)
 
         # 判斷點數門檻（可依資料量調整）
-        min_pts_quadratic = 12  # 二次擬合建議下限
-        min_pts_linear = 6  # 一次擬合建議下限
+        min_pts_quadratic = 12   # 二次擬合建議下限
+        min_pts_linear    = 6    # 一次擬合建議下限
 
         def fit_quadratic_or_linear(y, x):
             n = len(x)
@@ -705,7 +661,7 @@ class Lane:
         left_result = fit_quadratic_or_linear(lefty, leftx)
         right_result = fit_quadratic_or_linear(righty, rightx)
 
-        left_fit, left_deg = left_result
+        left_fit, left_deg   = left_result
         right_fit, right_deg = right_result
 
         # 若點數仍不足，直接使用上一幀的係數，不更新歷史，避免污染
@@ -876,26 +832,14 @@ class Lane:
 
         # --- Draw the mid line (target path) in blue ---
         mid_fitx = (self.left_fitx + self.right_fitx) / 2
-        mid_pts = np.array(
-            [np.transpose(np.vstack([mid_fitx, self.ploty]))], dtype=np.int32
-        )
-        cv2.polylines(
-            color_warp, mid_pts, isClosed=False, color=(255, 0, 0), thickness=8
-        )
+        mid_pts = np.array([np.transpose(np.vstack([mid_fitx, self.ploty]))], dtype=np.int32)
+        cv2.polylines(color_warp, mid_pts, isClosed=False, color=(255, 0, 0), thickness=8)
 
         # For plotting: also draw the mid line on the warped frame
-        warped_frame_with_mid = (
-            cv2.cvtColor(self.warped_frame, cv2.COLOR_GRAY2BGR)
-            if len(self.warped_frame.shape) == 2 or self.warped_frame.shape[2] == 1
+        warped_frame_with_mid = cv2.cvtColor(self.warped_frame, cv2.COLOR_GRAY2BGR) \
+            if len(self.warped_frame.shape) == 2 or self.warped_frame.shape[2] == 1 \
             else self.warped_frame.copy()
-        )
-        cv2.polylines(
-            warped_frame_with_mid,
-            mid_pts,
-            isClosed=False,
-            color=(255, 0, 0),
-            thickness=8,
-        )
+        cv2.polylines(warped_frame_with_mid, mid_pts, isClosed=False, color=(255, 0, 0), thickness=8)
 
         # Warp the blank back to original image space using inverse perspective
         # matrix (Minv)
@@ -944,10 +888,7 @@ class Lane:
 
         # 使用 sign_block_points 在原圖座標系先行遮蔽道路中線（避免被當作車道線）
         try:
-            if (
-                hasattr(self, "sign_block_points")
-                and self.sign_block_points is not None
-            ):
+            if hasattr(self, "sign_block_points") and self.sign_block_points is not None:
                 mask = np.zeros(self.orig_frame.shape[:2], dtype=np.uint8)
                 cv2.fillPoly(mask, [self.sign_block_points.astype(np.int32)], 255)
                 inv_mask = cv2.bitwise_not(mask)
@@ -958,11 +899,7 @@ class Lane:
                     # 單通道（binary/grayscale）
                     # 若 frame 尺寸與 orig_frame 不同，resize 遮罩以匹配
                     if frame.shape[:2] != mask.shape[:2]:
-                        inv_mask_resized = cv2.resize(
-                            inv_mask,
-                            (frame.shape[1], frame.shape[0]),
-                            interpolation=cv2.INTER_NEAREST,
-                        )
+                        inv_mask_resized = cv2.resize(inv_mask, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
                         frame = cv2.bitwise_and(frame, inv_mask_resized)
                     else:
                         frame = cv2.bitwise_and(frame, inv_mask)
@@ -1044,16 +981,15 @@ class Lane:
 
         cv2.destroyAllWindows()
 
-
 class LaneDetector:
     """
     車道檢測器 - 專為即時應用設計，保持狀態並重用計算
     """
-
+    
     def __init__(self, frame_width, frame_height, plot_enabled=False):
         """
         初始化檢測器
-
+        
         :param frame_width: 影像寬度
         :param frame_height: 影像高度
         :param plot_enabled: 是否啟用 plot 顯示
@@ -1063,36 +999,31 @@ class LaneDetector:
         self.lane_obj = None
         self.is_initialized = False
         self.plot_enabled = plot_enabled
-
+        
         # 用於判斷是否使用滑動窗口的參數
         self.frames_since_detection = 0
         self.max_frames_without_detection = 5
-
+        
     def initialize(self, first_frame):
         """
         使用第一幀初始化車道檢測器
-
+        
         :param first_frame: 第一幀影像
         """
         # 調整影像大小（如果需要）
-        if (
-            first_frame.shape[1] != self.frame_width
-            or first_frame.shape[0] != self.frame_height
-        ):
+        if first_frame.shape[1] != self.frame_width or first_frame.shape[0] != self.frame_height:
             first_frame = cv2.resize(first_frame, (self.frame_width, self.frame_height))
-
+        
         self.lane_obj = Lane(orig_frame=first_frame)
-
+        
         # 執行初始檢測
         lane_line_markings = self.lane_obj.get_line_markings()
         warped_frame = self.lane_obj.perspective_transform()
         histogram = self.lane_obj.calculate_histogram(plot=self.plot_enabled)
-
+        
         # 使用滑動窗口進行第一次檢測
-        left_fit, right_fit = self.lane_obj.get_lane_line_indices_sliding_windows(
-            plot=self.plot_enabled
-        )
-
+        left_fit, right_fit = self.lane_obj.get_lane_line_indices_sliding_windows(plot=self.plot_enabled)
+        
         if left_fit is not None and right_fit is not None:
             self.is_initialized = True
             self.frames_since_detection = 0
@@ -1100,39 +1031,33 @@ class LaneDetector:
         else:
             pass
             # print("車道檢測器初始化失敗")
-
+            
         return self.is_initialized
-
+    
     def enable_plot(self):
         """
         啟用 plot 顯示
         """
         self.plot_enabled = True
-
+    
     def disable_plot(self):
         """
         關閉 plot 顯示
         """
         self.plot_enabled = False
-
+    
     def set_plot(self, enabled):
         """
         設定 plot 顯示狀態
-
+        
         :param enabled: True 為啟用，False 為關閉
         """
         self.plot_enabled = enabled
-
-    def process_frame(
-        self,
-        frame,
-        force_sliding_window=False,
-        show_real_time=False,
-        only_left_line=False,
-    ):
+    
+    def process_frame(self, frame, force_sliding_window=False, show_real_time=False):
         """
         處理單一幀影像（即時使用）
-
+        
         :param frame: 輸入影像 (numpy.ndarray)
         :param force_sliding_window: 強制使用滑動窗口 (bool)
         :param show_real_time: 是否在回傳影像上繪製額外資訊 (bool)
@@ -1155,27 +1080,27 @@ class LaneDetector:
             success = self.initialize(frame)
             if not success:
                 return frame, False, None
-
+        
         # 調整影像大小
         if frame.shape[1] != self.frame_width or frame.shape[0] != self.frame_height:
             frame = cv2.resize(frame, (self.frame_width, self.frame_height))
-
+        
         # 更新 Lane object 的當前幀
         self.lane_obj.orig_frame = frame.copy()
-
+        
         try:
             # 取得車道線標記
             lane_line_markings = self.lane_obj.get_line_markings()
             warped_frame = self.lane_obj.perspective_transform(plot=self.plot_enabled)
-
+            
             # 決定使用哪種檢測方法
             use_sliding_window = (
-                force_sliding_window
-                or self.frames_since_detection >= self.max_frames_without_detection
-                or self.lane_obj.left_fit is None
-                or self.lane_obj.right_fit is None
+                force_sliding_window or 
+                self.frames_since_detection >= self.max_frames_without_detection or
+                self.lane_obj.left_fit is None or 
+                self.lane_obj.right_fit is None
             )
-
+            
             # if use_sliding_window:
             #     # 使用滑動窗口重新檢測
             #     histogram = self.lane_obj.calculate_histogram(plot=self.plot_enabled)
@@ -1186,27 +1111,20 @@ class LaneDetector:
             #     left_fit = self.lane_obj.left_fit
             #     right_fit = self.lane_obj.right_fit
             #     self.lane_obj.get_lane_line_previous_window(left_fit, right_fit, plot=self.plot_enabled)
-
+            
             histogram = self.lane_obj.calculate_histogram(plot=self.plot_enabled)
-            left_fit, right_fit = self.lane_obj.get_lane_line_indices_sliding_windows(
-                plot=self.plot_enabled
-            )
-
-            self.lane_obj.get_lane_line_previous_window(
-                left_fit, right_fit, plot=self.plot_enabled
-            )
-
+            left_fit, right_fit = self.lane_obj.get_lane_line_indices_sliding_windows(plot=self.plot_enabled)
+            self.lane_obj.get_lane_line_previous_window(left_fit, right_fit, plot=self.plot_enabled)
+            
             # 檢查檢測結果是否有效
             if left_fit is not None and right_fit is not None:
                 # 疊加車道線
-                frame_with_lanes = self.lane_obj.overlay_lane_lines(
-                    plot=self.plot_enabled
-                )
-
+                frame_with_lanes = self.lane_obj.overlay_lane_lines(plot=self.plot_enabled)
+                
                 # 計算曲率和偏移
                 self.lane_obj.calculate_curvature(print_to_terminal=False)
                 self.lane_obj.calculate_car_position(print_to_terminal=False)
-
+                
                 # 顯示資訊
                 if show_real_time:
                     final_frame = self.lane_obj.display_curvature_offset(
@@ -1217,32 +1135,32 @@ class LaneDetector:
 
                 # 計算轉向建議
                 direction, steer_deg, signed_R = self.lane_obj.compute_turn_command()
-
+                
                 # 準備車道資訊
                 lane_info = {
-                    "left_curvature": self.lane_obj.left_curvem,
-                    "right_curvature": self.lane_obj.right_curvem,
-                    "center_offset": self.lane_obj.center_offset,
-                    "turn_direction": direction,
-                    "steer_deg": steer_deg,
-                    "signed_radius_m": signed_R,
-                    "detection_method": (
-                        "sliding_window" if use_sliding_window else "previous_window"
-                    ),
+                    'left_curvature': self.lane_obj.left_curvem,
+                    'right_curvature': self.lane_obj.right_curvem,
+                    'center_offset': self.lane_obj.center_offset,
+                    'turn_direction': direction,
+                    'steer_deg': steer_deg,
+                    'signed_radius_m': signed_R,
+                    'left_fit': self.lane_obj.left_fit,
+                    'right_fit': self.lane_obj.right_fit,
+                    'detection_method': 'sliding_window' if use_sliding_window else 'previous_window'
                 }
-
+                
                 return final_frame, True, lane_info
-
+            
             else:
                 # 檢測失敗
                 self.frames_since_detection += 1
                 return frame, False, None
-
+                
         except Exception as e:
             print(f"車道檢測錯誤: {e}")
             self.frames_since_detection += 1
             return frame, False, None
-
+    
     def reset(self):
         """
         重置檢測器狀態
@@ -1251,91 +1169,66 @@ class LaneDetector:
         self.is_initialized = False
         self.frames_since_detection = 0
         print("車道檢測器已重置")
-
+    
     def get_lane_center_point(self, y_position=None):
         """
         取得指定高度的車道中心點 X 座標
-
+        
         :param y_position: Y座標位置（None為底部）
         :return: 車道中心點的 X 座標
         """
-        if (
-            not self.is_initialized
-            or self.lane_obj.left_fit is None
-            or self.lane_obj.right_fit is None
-        ):
+        if not self.is_initialized or self.lane_obj.left_fit is None or self.lane_obj.right_fit is None:
             return None
-
+            
         if y_position is None:
             y_position = self.frame_height - 1
-
+            
         # 計算該高度的左右車道線位置
-        left_x = (
-            self.lane_obj.left_fit[0] * y_position**2
-            + self.lane_obj.left_fit[1] * y_position
-            + self.lane_obj.left_fit[2]
-        )
-        right_x = (
-            self.lane_obj.right_fit[0] * y_position**2
-            + self.lane_obj.right_fit[1] * y_position
-            + self.lane_obj.right_fit[2]
-        )
-
+        left_x = (self.lane_obj.left_fit[0] * y_position**2 + 
+                 self.lane_obj.left_fit[1] * y_position + 
+                 self.lane_obj.left_fit[2])
+        right_x = (self.lane_obj.right_fit[0] * y_position**2 + 
+                  self.lane_obj.right_fit[1] * y_position + 
+                  self.lane_obj.right_fit[2])
+        
         return (left_x + right_x) / 2
-
 
 def process_one_frame(frame, plot=False, show_real_time=False):
     """
     即時影片車道檢測
-
+    
     :param frame: 輸入影像
     :param plot: 是否顯示 plot
     """
     frame_width = frame.shape[1]
     frame_height = frame.shape[0]
-
+    
     # 建立車道檢測器
     detector = LaneDetector(frame_width, frame_height, plot_enabled=plot)
-
+    
     # print("開始即時車道檢測")
 
     # 處理幀
-    result_frame, success, lane_info = detector.process_frame(
-        frame,
-        force_sliding_window=False,
-        show_real_time=show_real_time,
-    )
-
+    result_frame, success, lane_info = detector.process_frame(frame, force_sliding_window=False, show_real_time=show_real_time)
+    
     # 顯示檢測狀態
     if show_real_time:
         status_text = "lane detection" if success else "lane detection failed"
-        cv2.putText(
-            result_frame,
-            status_text,
-            (350, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 255, 0) if success else (0, 0, 255),
-            2,
-        )
-
+        cv2.putText(result_frame, status_text, (350, 30), 
+                cv2.FONT_HERSHEY_SIMPLEX, 1, 
+                (0, 255, 0) if success else (0, 0, 255), 2)
+        
         if success and lane_info:
             # 顯示車道中心點
             center_x = detector.get_lane_center_point()
             if center_x:
-                cv2.circle(
-                    result_frame,
-                    (int(center_x), frame_height - 50),
-                    10,
-                    (255, 0, 0),
-                    -1,
-                )
-
+                cv2.circle(result_frame, (int(center_x), frame_height - 50), 
+                        10, (255, 0, 0), -1)
+        
         # 儲存/顯示結果
-        cv2.imshow("Real-time Lane Detection", result_frame)
-
+        cv2.imshow('Real-time Lane Detection', result_frame)
+    
     return result_frame, success, lane_info
-
 
 def ensure_images_dir():
     """
@@ -1346,14 +1239,11 @@ def ensure_images_dir():
         os.makedirs(images_dir)
     return images_dir
 
-
 if __name__ == "__main__":
     # main()
     # frame = cv2.imread("british airways landing-short-00.00.05.773.jpeg")
-    frame = cv2.imread("right_turn_3.jpg")
-    result_frame, success, lane_info = process_one_frame(
-        frame, plot=False, show_real_time=True
-    )
+    frame = cv2.imread("front_20250815_145515_567427.jpg")
+    result_frame, success, lane_info = process_one_frame(frame, plot=False, show_real_time=True)
     print(lane_info)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
