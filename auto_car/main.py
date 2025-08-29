@@ -16,6 +16,10 @@ from control.control import CarController
 # from path_planning import planner  # To be implemented
 from perception.object_detection import object_detection
 # from path_planning import decision_making
+from control.control import CarController
+# from path_planning import planner  # To be implemented
+from perception.object_detection import object_detection
+# from path_planning import decision_making
 
 class CarApp:
     def __init__(self):
@@ -52,6 +56,9 @@ class CarApp:
     def auto_mode(self):
         print("Auto mode starting...")
 
+        self.controller.stop()
+        self.controller.set_servo(1, 85)
+        self.controller.set_servo(2, 110)
         self.controller.stop()
         self.controller.set_servo(1, 85)
         self.controller.set_servo(2, 110)
@@ -171,14 +178,116 @@ class CarApp:
 
         finally:
             self.controller.stop()
+            self.controller.stop()
             cam.stop()
             cv2.destroyAllWindows()
+            self.stop_event.set()
+            lane_thread.join()
+            detect_thread.join()
+            self.stop_event.set()
+            lane_thread.join()
+            detect_thread.join()
             print("Auto mode finished.")
 
     def manual_mode(self):
         print("Manual mode starting...")
-        cam_thread = threading.Thread(target=self.run_cameras)
+        # Load object detection model once
+        script_dir = pathlib.Path(__file__).parent.resolve()
+        model_path = str(script_dir / "perception" / "object_detection" / "best.pt")
+        model = object_detection.YOLO(model_path)
+        class_names = model.names if hasattr(model, 'names') else None
+
+        def camera_and_detection():
+            cam_front = CameraNode(camera_index=0, resolution=(640, 480), flip_front=True)
+            cam_front.start()
+            try:
+                while not self.stop_event.is_set():
+                    frame_front = cam_front.get_frame()
+                    if frame_front is None:
+                        continue
+
+                    # Object detection
+                    detections, _ = object_detection.detect_objects(
+                        image_path=None,
+                        model_path=model_path,
+                        class_names=class_names,
+                        conf_thres=0.5,
+                        image=frame_front
+                    )
+
+                    # Draw bounding boxes on the image
+                    for obj in detections:
+                        x1, y1, x2, y2 = obj['bbox']
+                        label = f"{obj['label']} {obj.get('confidence', 0):.2f}"
+                        cv2.rectangle(frame_front, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.putText(frame_front, label, (x1, max(y1 - 10, 0)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+                    cv2.imshow("Cam + Detection", frame_front)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q'):
+                        self.stop_event.set()
+                        break
+                    elif key == ord('g'):
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                        front_path = self.front_dir / f"front_{timestamp}.jpg"
+                        cv2.imwrite(str(front_path), frame_front)
+                        print(f"Saved: {front_path}")
+            finally:
+                cam_front.stop()
+                cv2.destroyAllWindows()
+
+        cam_thread = threading.Thread(target=camera_and_detection)
+        # Load object detection model once
+        script_dir = pathlib.Path(__file__).parent.resolve()
+        model_path = str(script_dir / "perception" / "object_detection" / "best.pt")
+        model = object_detection.YOLO(model_path)
+        class_names = model.names if hasattr(model, 'names') else None
+
+        def camera_and_detection():
+            cam_front = CameraNode(camera_index=0, resolution=(640, 480), flip_front=True)
+            cam_front.start()
+            try:
+                while not self.stop_event.is_set():
+                    frame_front = cam_front.get_frame()
+                    if frame_front is None:
+                        continue
+
+                    # Object detection
+                    detections, _ = object_detection.detect_objects(
+                        image_path=None,
+                        model_path=model_path,
+                        class_names=class_names,
+                        conf_thres=0.5,
+                        image=frame_front
+                    )
+
+                    # Draw bounding boxes on the image
+                    for obj in detections:
+                        x1, y1, x2, y2 = obj['bbox']
+                        label = f"{obj['label']} {obj.get('confidence', 0):.2f}"
+                        cv2.rectangle(frame_front, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.putText(frame_front, label, (x1, max(y1 - 10, 0)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+                    cv2.imshow("Cam + Detection", frame_front)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q'):
+                        self.stop_event.set()
+                        break
+                    elif key == ord('g'):
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                        front_path = self.front_dir / f"front_{timestamp}.jpg"
+                        cv2.imwrite(str(front_path), frame_front)
+                        print(f"Saved: {front_path}")
+            finally:
+                cam_front.stop()
+                cv2.destroyAllWindows()
+
+        cam_thread = threading.Thread(target=camera_and_detection)
         cam_thread.start()
+        from control.manual_control import RemoteControl
+        remote = RemoteControl()
+        remote.start()
+        self.stop_event.set()
         from control.manual_control import RemoteControl
         remote = RemoteControl()
         remote.start()
