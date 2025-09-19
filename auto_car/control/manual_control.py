@@ -15,8 +15,8 @@ class RemoteControl:
     def __init__(self):
         self.car = YB_Pcb_Car()  # Instantiate the car object
         self.car.Car_Stop()
-        self.car.Ctrl_Servo(1, 85)  # Set initial servo positions
-        self.car.Ctrl_Servo(2, 110)
+        self.car.Ctrl_Servo(1, 90)  # Set initial servo positions
+        self.car.Ctrl_Servo(2, 120)
 
     def start(self):
         curses.wrapper(self.run)
@@ -41,6 +41,15 @@ class RemoteControl:
                 self.car.Car_Right(100, 0)
             elif key == ord('x'):
                 self.car.Car_Stop()
+            elif key == ord('j'):
+                self.car.Ctrl_Servo(1, 150)
+                self.car.Ctrl_Servo(2, 140)
+            elif key == ord('k'):
+                self.car.Ctrl_Servo(1, 85)
+                self.car.Ctrl_Servo(2, 100)
+            elif key == ord('l'):
+                self.car.Ctrl_Servo(1, 30)
+                self.car.Ctrl_Servo(2, 140)
             elif key == ord('q'):
                 break
 

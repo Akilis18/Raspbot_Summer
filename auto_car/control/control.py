@@ -15,8 +15,8 @@ class CarController:
     def __init__(self):
         self.car = YB_Pcb_Car()
         self.car.Car_Stop()
-        self.car.Ctrl_Servo(1, 85)
-        self.car.Ctrl_Servo(2, 110)
+        self.car.Ctrl_Servo(1, 90)
+        self.car.Ctrl_Servo(2, 120)
 
     def set_speed(self, left_speed, right_speed):
         if left_speed > 0 or right_speed > 0:
@@ -32,19 +32,23 @@ class CarController:
 
 
     def turnL(self):
+        self.car.Car_Run(70, 70)
+        time.sleep(1)
         # soft big L turn
         # self.car.Control_Car(60, 105)
 
         # sharp big L turn
         self.car.Control_Car(50, 110)
         time.sleep(1)
-        self.car.Car_Stop()
+        # self.car.Car_Stop()
 
     def turnR(self):
+        self.car.Car_Run(40, 40)
+        time.sleep(2)
         # sharp big R turn
         self.car.Control_Car(100, 30)
         time.sleep(1.3)
-        self.car.Car_Stop()
+        # self.car.Car_Stop()
 
     def switchL(self):
         self.car.Control_Car(40, 100)
@@ -53,7 +57,7 @@ class CarController:
         time.sleep(0.5)
         self.car.Control_Car(100, 40)
         time.sleep(0.3)
-        self.car.Car_Stop()
+        # self.car.Car_Stop()
 
     def switchR(self):
         self.car.Control_Car(100, 40)
